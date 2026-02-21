@@ -1,0 +1,70 @@
+name: 🤖 Agent Task / エージェント実行仕様
+description: Issue を「実行仕様」に落とし、エージェント割当を前提にしたテンプレ
+title: "[AGENT] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        このテンプレートは「Issue=実行仕様（Agent前提）」の最小形です。
+        受入基準・制約・テスト・変更禁止領域が埋まっていることを前提に、エージェントが PR を作成します。
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal / ゴール（必須）
+      description: 何を完了とするか（成果物）を 1〜3 行で書く。
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / 背景（必須）
+      description: なぜ必要か、現状の課題、影響範囲を書く。
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria / 受入基準（必須）
+      description: PR が「完了」と判断できる条件をチェックリストで書く。
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints / 制約（必須）
+      description: 互換性、性能、セキュリティ、方針、変更してよい範囲を書く。
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: Test plan / テスト（必須）
+      description: 実行コマンドと期待結果を書く。
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden
+    attributes:
+      label: Do not change / 変更禁止領域（必須）
+      description: 触れてはいけないファイル/仕様を書く。
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / 補足（任意）
+      description: 参考資料や関連リンク、既知の制約を書く。
+    validations:
+      required: false
+

@@ -1,0 +1,64 @@
+name: 📚 Documentation / ドキュメント修正（Agent対応）
+description: Companion資産（テンプレ/手順/サンプル）の修正用（受入基準/制約/テストを必須化）
+title: "[DOC] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        対象ページと、利用者が得る結果（何が導入しやすくなるか）を先に固定します。
+
+  - type: input
+    id: target_path
+    attributes:
+      label: Target path / 対象パス（必須）
+      description: "例: `.github/ISSUE_TEMPLATE/agent-task.yml` / `rules/command-policy.md`"
+      placeholder: ".github/ISSUE_TEMPLATE/agent-task.yml"
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: Change / 変更内容（必須）
+      description: 何を追記/修正/削除するか。互換性への影響も書く。
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria / 受入基準（必須）
+      placeholder: |
+        - [ ] 受入基準/制約/テスト/変更禁止領域が明確
+        - [ ] 既存利用者の導入手順が壊れていない（必要なら移行手順がある）
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints / 制約（必須）
+      description: 表記、用語、範囲、断定の禁止（変動要素は一次情報参照へ）など。
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: Test plan / テスト（必須）
+      render: bash
+      placeholder: |
+        例:
+        - リンク/参照が壊れていない
+        - テンプレが GitHub のフォームとして読み込める
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden
+    attributes:
+      label: Do not change / 変更禁止領域（必須）
+    validations:
+      required: true
+
