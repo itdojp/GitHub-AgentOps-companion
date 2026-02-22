@@ -1,0 +1,118 @@
+name: Codex PR Review (summary + risks)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: codex-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  run_codex:
+    if: ${{ !github.event.pull_request.draft && secrets.OPENAI_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - name: Checkout PR merge ref
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0
+
+      - name: Fetch base/head
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseSha="${{ github.event.pull_request.base.sha }}"
+          headSha="${{ github.event.pull_request.head.sha }}"
+          git fetch origin "${baseSha}":refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+          git fetch origin "${headSha}":refs/remotes/origin/${{ github.event.pull_request.head.ref }}
+
+      - name: Build prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > codex_prompt.md <<'EOF'
+          # Context
+          - PR: ${{ github.event.pull_request.html_url }}
+          - Base: origin/${{ github.event.pull_request.base.ref }} (${{ github.event.pull_request.base.sha }})
+          - Head: origin/${{ github.event.pull_request.head.ref }} (${{ github.event.pull_request.head.sha }})
+
+          Analyze changes between base and head.
+
+          Recommended commands:
+          - git log --oneline --decorate origin/${{ github.event.pull_request.base.ref }}..origin/${{ github.event.pull_request.head.ref }}
+          - git diff --stat origin/${{ github.event.pull_request.base.ref }}...origin/${{ github.event.pull_request.head.ref }}
+          - git diff origin/${{ github.event.pull_request.base.ref }}...origin/${{ github.event.pull_request.head.ref }}
+          EOF
+          echo "" >> codex_prompt.md
+          cat .github/codex/prompts/pr-review.md >> codex_prompt.md
+
+      - name: Run Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: codex_prompt.md
+          model: codex
+          effort: medium
+          sandbox: read-only
+          safety-strategy: drop-sudo
+
+  comment:
+    runs-on: ubuntu-latest
+    needs: run_codex
+    if: ${{ needs.run_codex.outputs.final_message != '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Upsert PR comment
+        uses: actions/github-script@v7
+        env:
+          CODEX_FINAL_MESSAGE: ${{ needs.run_codex.outputs.final_message }}
+        with:
+          script: |
+            const marker = '<!-- codex-pr-review -->';
+            const message = (process.env.CODEX_FINAL_MESSAGE ?? '').trim();
+            if (!message) {
+              core.setFailed('No Codex output (final_message is empty).');
+              return;
+            }
+            const body = `${marker}\n\n${message}\n`;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) =>
+              c.user?.login === 'github-actions[bot]' &&
+              typeof c.body === 'string' &&
+              c.body.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+

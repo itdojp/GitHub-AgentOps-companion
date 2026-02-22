@@ -1,0 +1,127 @@
+name: Codex Release Prep (summary + checklist)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "比較元（例: v1.2.3）。空なら HEAD から直近のタグを自動選択（タグが無い場合は初回コミット）"
+        required: false
+        type: string
+      head_ref:
+        description: "比較先（例: main, SHA）。空なら実行時の SHA"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run_codex:
+    if: ${{ secrets.OPENAI_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+      base_ref: ${{ steps.range.outputs.base_ref }}
+      head_ref: ${{ steps.range.outputs.head_ref }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine diff range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_ref="${{ github.event.inputs.head_ref }}"
+          base_ref="${{ github.event.inputs.base_ref }}"
+
+          if [ -z "${head_ref}" ]; then
+            head_ref="${GITHUB_SHA}"
+          fi
+
+          if [ -z "${base_ref}" ]; then
+            if base="$(git describe --tags --abbrev=0 "${head_ref}" 2>/dev/null)"; then
+              base_ref="${base}"
+            else
+              base_ref="$(git rev-list --max-parents=0 "${head_ref}" | tail -n 1)"
+            fi
+          fi
+
+          echo "base_ref=${base_ref}" >> "$GITHUB_OUTPUT"
+          echo "head_ref=${head_ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Build prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > codex_prompt.md <<'EOF'
+          # Context
+          - Purpose: Release prep summary + checklist
+          - Base: ${{ steps.range.outputs.base_ref }}
+          - Head: ${{ steps.range.outputs.head_ref }}
+
+          Analyze changes in the range above.
+
+          Recommended commands:
+          - git log --oneline --decorate ${{ steps.range.outputs.base_ref }}..${{ steps.range.outputs.head_ref }}
+          - git diff --stat ${{ steps.range.outputs.base_ref }}..${{ steps.range.outputs.head_ref }}
+          - git diff ${{ steps.range.outputs.base_ref }}..${{ steps.range.outputs.head_ref }}
+          EOF
+          echo "" >> codex_prompt.md
+          cat .github/codex/prompts/release-prep.md >> codex_prompt.md
+
+      - name: Run Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: codex_prompt.md
+          model: codex
+          effort: medium
+          sandbox: read-only
+          safety-strategy: drop-sudo
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: run_codex
+    if: ${{ needs.run_codex.outputs.final_message != '' }}
+    timeout-minutes: 5
+    steps:
+      - name: Write job summary
+        shell: bash
+        env:
+          CODEX_FINAL_MESSAGE: ${{ needs.run_codex.outputs.final_message }}
+          BASE_REF: ${{ needs.run_codex.outputs.base_ref }}
+          HEAD_REF: ${{ needs.run_codex.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Codex Release Prep"
+            echo ""
+            echo "- Base: \`${BASE_REF}\`"
+            echo "- Head: \`${HEAD_REF}\`"
+            echo ""
+            printf '%s\n' "${CODEX_FINAL_MESSAGE}"
+            echo ""
+          } > codex-release-prep.md
+          {
+            echo "## Codex Release Prep"
+            echo ""
+            echo "- Base: \`${BASE_REF}\`"
+            echo "- Head: \`${HEAD_REF}\`"
+            echo ""
+            printf '%s\n' "${CODEX_FINAL_MESSAGE}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-release-prep
+          path: |
+            codex-release-prep.md
+          if-no-files-found: ignore
+
