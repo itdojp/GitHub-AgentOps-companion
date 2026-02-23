@@ -15,19 +15,35 @@ permissions:
 
 jobs:
   run_codex:
-    if: ${{ !github.event.pull_request.draft && secrets.OPENAI_API_KEY != '' }}
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       final_message: ${{ steps.codex.outputs.final-message }}
     steps:
+      - name: Guard (require OPENAI_API_KEY)
+        id: guard
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY is not set; skipping Codex steps."
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout PR merge ref
+        if: ${{ steps.guard.outputs.has_key == 'true' }}
         uses: actions/checkout@v5
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
           fetch-depth: 0
 
       - name: Fetch base/head
+        if: ${{ steps.guard.outputs.has_key == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -37,6 +53,7 @@ jobs:
           git fetch origin "${headSha}":refs/remotes/origin/${{ github.event.pull_request.head.ref }}
 
       - name: Build prompt
+        if: ${{ steps.guard.outputs.has_key == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -58,6 +75,7 @@ jobs:
 
       - name: Run Codex
         id: codex
+        if: ${{ steps.guard.outputs.has_key == 'true' }}
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -115,4 +133,3 @@ jobs:
                 body,
               });
             }
-
