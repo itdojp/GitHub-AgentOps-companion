@@ -1,7 +1,15 @@
 # GitHub AgentOps Companion（for Book3）
 
-本リポジトリは、書籍「GitHub AgentOps 実践ガイド（Codex中心）」の Companion Repository です。
+本リポジトリは、書籍「GitHub AgentOps 実践ガイド」の Companion Repository です。
 書籍側が「理解（背景/判断基準）」、本リポジトリが「導入（コピペ資産）」を担います。
+「Book3」は、シリーズ第3巻『GitHub AgentOps 実践ガイド』を指します。
+
+本書は、例として Codex / GitHub Agents / Copilot coding agent を扱います（主要例は Codex）。
+
+## オンライン版（Book）
+
+- GitHub Pages: https://itdojp.github.io/GitHub-AgentOps-book/
+- Book repo: https://github.com/itdojp/GitHub-AgentOps-book
 
 ## 収録内容（初期）
 

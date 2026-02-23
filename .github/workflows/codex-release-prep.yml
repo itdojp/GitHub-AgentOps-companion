@@ -17,7 +17,6 @@ permissions:
 
 jobs:
   run_codex:
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -25,6 +24,17 @@ jobs:
       base_ref: ${{ steps.range.outputs.base_ref }}
       head_ref: ${{ steps.range.outputs.head_ref }}
     steps:
+      - name: Guard (require OPENAI_API_KEY)
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "::error::OPENAI_API_KEY is not set. Add it in Repository Secrets to use this workflow."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
@@ -124,4 +134,3 @@ jobs:
           path: |
             codex-release-prep.md
           if-no-files-found: ignore
-
